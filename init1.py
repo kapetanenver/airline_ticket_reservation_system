@@ -12,6 +12,7 @@ conn = mysql.connector.connect(host='localhost',
                        user='root',
                        password='',
                        database='airline_reservation')
+                      # port= '3306')
 
 
 #Define a route to hello function
