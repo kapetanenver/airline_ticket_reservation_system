@@ -30,18 +30,31 @@
 
 <h3>Upcoming Flights</h3>
 <table>
-	<th>Time</th>
-	<th>Flight</th>
+	<th>Airline</th>
+	<th>Flight Number</th>
+	<th>Dep Airport</th>
+	<th>Arrival Airport</th>
+	<th>Ticket ID</th>
+	<th>Customer Email</th>
+	<th>Purchase Date</th>
+	<th>Status</th>
+
 
 {% for line in purchased_flights %}
 	<tr>
 		<td>{{line[0]}}</td>
 		<td>{{line[1]}}</td>
-		
+		<td>{{line[2]}}</td>
+		<td>{{line[4]}}</td>
+		<td>{{line[9]}}</td>
+		<td>{{line[10]}}</td>
+		<td>{{line[12]}}</td>
+		<td>{{line[7]}}</td>
 	</tr>
 {% endfor %}
 </table>
 
+<a href='/advanced_search'>Advanced Search</a>
 <a href="/logout">Logout</a>
 
 </body>
