@@ -1,9 +1,7 @@
-#!C:/Users/lx615/AppData/Local/Programs/Python/Python38-32/python
-
 #Import Flask Library
 from flask import Flask, render_template, request, session, url_for, redirect, flash
 import mysql.connector
-
+from datetime import datetime
 #Initialize the app from Flask
 app = Flask(__name__)
 
@@ -12,7 +10,6 @@ conn = mysql.connector.connect(host='localhost',
                        user='root',
                        password='',
                        database='airline_reservation')
-                      # port= '3306')
 
 
 #Define a route to hello function
@@ -95,6 +92,7 @@ def registerAuth():
         session['account_type'] = account_type 
         session['password'] = password
 
+
         if account_type == 'customer':
             url_for = 'cus_register.html'
         elif account_type == 'booking_agent':
@@ -111,17 +109,22 @@ def home():
     cursor = conn.cursor()
     if account_type == 'customer':
         page_to_render = 'user_home_page.html'
-        query_purchased_flights = "SELECT * FROM flight, purchases, ticket WHERE flight.status = 'upcoming' AND purchases.customer_email = \'{}\' AND purchases.ticket_id = ticket.ticket_id"
+        query_purchased_flights = "SELECT * FROM flight, purchases, ticket WHERE purchases.customer_email = \'{}\' AND purchases.ticket_id = ticket.ticket_id AND ticket.flight_num = flight.flight_num"
         cursor.execute(query_purchased_flights.format(username))
         data1 = cursor.fetchall() 
-        
+
+        #FOR SOME REASON NOT ALL UPCOMING FLIGHTS ARE DISPLAYED UPON SIGN IN
+        #---------------------------------------------------------------------
+        #SEEMS TO BE WORKING NOW???!!!
+
         query_all_flights= "SELECT * FROM flight WHERE flight.status = 'upcoming'"
         cursor.execute(query_all_flights)
         data2 = cursor.fetchall()
 
+
     elif account_type == 'booking_agent':
         page_to_render = 'booking_home_page.html'
-        query2 = "SELECT * FROM flight, purchases, booking_agent, ticket WHERE flight.status = 'upcoming' AND booking_agent.email = \'{}\' AND purchases.booking_agent_id = booking_agent.booking_agent_id  AND purchases.ticket_id = ticket.ticket_id"
+        query2 = "SELECT * FROM flight, purchases, booking_agent, ticket WHERE booking_agent.email = \'{}\' AND purchases.booking_agent_id = booking_agent.booking_agent_id  AND purchases.ticket_id = ticket.ticket_id and flight.flight_num = ticket.flight_num"
         cursor.execute(query2.format(username))
         data1 = cursor.fetchall() 
 
@@ -129,15 +132,10 @@ def home():
         cursor.execute(query_all_flights)
         data2 = cursor.fetchall()
 
-
     elif account_type == 'airline_staff':
         page_to_render = 'staff_home_page.html'
-        query = "SELECT * FROM flight WHERE flight.status = 'upcoming'"
         cursor.execute(query)
         data1 = cursor.fetchall() 
-
-
-    
 
     cursor.close()
 
@@ -146,10 +144,14 @@ def home():
 @app.route('/cus_register', methods=['GET', 'POST'])
 def cus_register():
     #inserts details from customer_register into database
-    username = session['username']
-    password = session['password'] #PROLLY NOT THE SAFEST WAY TO GET PASSWORD FROM 1ST FROM TO 2ND FORM
-    session['password'] = ''
     account_type = session['account_type']
+    if account_type == 'customer':
+        username = session['username']
+        password = session['password'] #PROLLY NOT THE SAFEST WAY TO GET PASSWORD FROM 1ST FROM TO 2ND FORM
+        session['password'] = ''
+    elif account_type == 'booking_agent':
+        username = request.form['username']
+        password = request.form['password']
     name = request.form['name']
     building_num = request.form['building_num']
     street = request.form['street']
@@ -167,7 +169,12 @@ def cus_register():
     conn.commit()   
     cursor.close()
     #then calls /home to get the new users homepage
-    return redirect(url_for('home'))
+    if account_type == 'customer':
+        return redirect(url_for('home'))
+    elif account_type =='booking_agent':
+        flight_num = request.form['flight_num']
+        flight_price = request.form['flight_price']
+        return render_template('agent_purchase_confirm.html', data = username, flight_num= flight_num[:-1], flight_price= flight_price[:-1])
 
 @app.route('/staff_register', methods=['GET', 'POST'])
 def staff_register():
@@ -222,7 +229,7 @@ def search():
         elif arrival_airport !='' :
             query += " and arrival_airport = '%s'" %arrival_airport
 
-        if departure_time != '' and (departure_airport =='' and departure_time ==''):
+        if departure_time != '' and (departure_airport =='' and arrival_airport ==''):
             query += ' where departure_time = "%s"' %departure_time
         elif departure_time != '':
             query += ' and departure_time = "%s"' %departure_time
@@ -233,8 +240,194 @@ def search():
         return render_template('index.html', flights=data)
     else:
         return render_template('index.html')
-    
 
+    
+@app.route('/user_search', methods=['GET', 'POST'])
+def user_search():
+    if request.method == 'POST': 
+        departure_airport = request.form['dept_airport']
+        arrival_airport = request.form['arrival_airport']
+        departure_time = request.form['dept_time']
+
+        cursor = conn.cursor();
+        query = "SELECT * FROM flight"
+        if departure_airport !='':
+            query+= " where departure_airport = '%s'" %departure_airport
+
+        if arrival_airport !='' and departure_airport =='':
+            query += " where arrival_airport = '%s'" % arrival_airport
+        elif arrival_airport !='' :
+            query += " and arrival_airport = '%s'" %arrival_airport
+
+        if departure_time != '' and (departure_airport =='' and arrival_airport ==''):
+            query += ' where departure_time = "%s"' %departure_time
+        elif departure_time != '':
+            query += ' and departure_time = "%s"' %departure_time
+        
+        cursor.execute(query)
+        data = cursor.fetchall() 
+        cursor.close()
+        return render_template('search_results.html', flights=data)
+    else:
+        return render_template('index.html')
+    '''
+    if request.method == 'POST': 
+        #get input from form 
+        departure_airport = request.form['dept_airport']
+        arrival_airport = request.form['arrival_airport']
+        departure_time = request.form['dept_time']
+        #
+        cursor = conn.cursor();
+        query = "SELECT * FROM flight WHERE departure_airport = %s and arrival_airport = %s and departure_time = %s"
+        cursor.execute(query, (departure_airport, arrival_airport, departure_time))
+        data = cursor.fetchall() 
+        cursor.close()
+        return render_template('search_results.html', flights=data)
+        '''
+
+@app.route('/agent_search', methods=['GET', 'POST'])
+def agent_search():
+    '''
+    if request.method == 'POST': 
+        '''
+    departure_airport = request.form['dept_airport']
+    arrival_airport = request.form['arrival_airport']
+    departure_time = request.form['dept_time']
+    max_date = request.form['max_date']
+    min_date = request.form['min_date']
+    flag = request.form['booking']
+
+    cursor = conn.cursor();
+    if flag == "my":
+        query = "SELECT * from flight, purchases, booking_agent, ticket WHERE booking_agent.email = '%s' and booking_agent.booking_agent_id = purchases.booking_agent_id and flight.flight_num = ticket.flight_num and purchases.ticket_id = ticket.ticket_id" %session['username']
+        page_to_render = 'agent_search_results.html'
+    else:
+        query = "SELECT * FROM flight"
+        if departure_airport =='' and arrival_airport =='' and departure_time =='' and max_date=='' and min_date=='':
+            query +=' where flight.status = "upcoming"'
+        else:
+            query +=' where flight.status != ""'
+        page_to_render = 'agent_search_results_all.html'
+    if departure_airport !='':
+        query+= " and flight.departure_airport = '%s'" %departure_airport
+    if arrival_airport !='' :
+        query += " and flight.arrival_airport = '%s'" %arrival_airport
+    if departure_time != '':
+        query += ' and flight.departure_time = "%s"' %departure_time
+    if max_date !='' and min_date!='':
+        query += ' and (flight.departure_time >= "%s"' %min_date
+        query += ' and flight.departure_time <= "%s)"'%max_date
+    elif max_date !='' and min_date == '':
+        query += ' and flight.departure_time <= "%s"'%max_date
+    elif min_date !=''and max_date == '':
+        query += ' and flight.departure_time >= "%s"' %min_date
+    cursor.execute(query)
+    data = cursor.fetchall() 
+    cursor.close()
+    return render_template(page_to_render, flights=data)
+    '''
+    else:
+        return render_template('booking_home_page.html')
+        '''
+
+
+@app.route('/purchase_flight', methods=['GET', 'POST'])
+def purchase_flight():
+    flight_num  = request.form['flight_num']
+    session['flight_num'] = flight_num
+
+    flight_price = request.form['flight_price']
+
+    sesh = session['account_type']
+    if sesh == 'booking_agent':
+        page_to_render = 'agent_purchase_flight.html'
+    else:
+        page_to_render = 'purchase_flight.html'
+
+    return render_template(page_to_render, flight_num=flight_num, flight_price=flight_price)
+
+
+@app.route('/agent_confim_purchase', methods =['GET', 'POST'])
+def agent_confrim_purchase():
+    flight_num =session['flight_num']
+    flight_price = request.form['flight_price'][:-1]
+    username = session['username']
+    flag = request.form['customer']
+    if flag =='yes':
+        page_to_render = 'agent_purchase_confirm.html'
+    else:
+        page_to_render = 'agent_create_customer.html'
+
+    return render_template(page_to_render, flight_num=flight_num, flight_price=flight_price)
+
+
+@app.route('/agent_insert_purchase', methods=['GET', 'POST'])
+def agent_insert_purchase():
+    flight_num = request.form['flight_num']
+    username = session['username']
+    customer_username = request.form['customer_username']
+    cursor = conn.cursor()
+    query1 = "SELECT ticket_id FROM ticket WHERE ticket.flight_num = '%s'" %int(flight_num)
+    cursor.execute(query1)
+    ticket = cursor.fetchall()
+    cursor.close()
+    ticket_id = ticket[0][0]
+
+    todays_date =datetime.today().strftime('%Y-%m-%d')
+
+    cursor = conn.cursor()
+    agent_data = 'select booking_agent_id from booking_agent where email = "%s"' %username
+    cursor.execute(agent_data)
+    agent = cursor.fetchone()
+    cursor.close()
+    agent_id = int(agent[0])
+
+    cursor = conn.cursor()
+    ins = "INSERT INTO purchases VALUES(\'{}\',\'{}\',\'{}\',\'{}\')"
+    cursor.execute(ins.format(ticket_id,customer_username,agent_id,todays_date))
+    conn.commit()   
+    cursor.close()
+
+    return redirect(url_for('home'))
+
+@app.route('/insert_purchase', methods=['GET', 'POST'])
+def insert_purchase():
+    if request.method == 'POST': 
+        flight_num = session['flight_num']
+        username = session['username']
+
+        #use these to findout value of flightnum
+        if len(flight_num) == 0:
+            error = 'flight num'+ str(flight_num)
+            return render_template('login.html', error=error)
+
+        
+        #first need to get ticket id from flight number 
+        cursor = conn.cursor();
+        query = "SELECT * FROM ticket WHERE ticket.flight_num = \'{}\'"
+        cursor.execute(query.format(flight_num))
+        data = cursor.fetchall()
+        cursor.close()
+
+        ticket_id = data[0][0]
+
+        if ticket_id == 0:
+            error = ticket_id
+            return render_template('login.html', error=ticket_id)
+
+        todays_date =datetime.today().strftime('%Y-%m-%d')
+
+        cursor = conn.cursor()
+        ins = "INSERT INTO purchases VALUES(\'{}\',\'{}\',NULL,\'{}\')"
+        cursor.execute(ins.format(ticket_id,username,todays_date))
+        conn.commit()   
+        cursor.close()
+
+        return redirect(url_for('home'))
+
+        
+
+        
 
 @app.route('/logout')
 def logout():
