@@ -19,8 +19,8 @@
 	<input type="date" name = 'min_date' placeholder="earliest date" value=''>
 	<label> <for="max_date">Max Date:</label>
 	<input type="date" name = 'max_date' placeholder="latest date" value=''>
-	<label><input type="radio" class="booking" value="my" name="booking" />My bookings</label>
-    <label><input type="radio" class="booking" value="all" name="booking" />All flights</label>
+	<label><input type="radio" class="booking" value="my" name="booking" required />My bookings</label>
+    <label><input type="radio" class="booking" value="all" name="booking" requred/>All flights</label>
 	<input type="submit" value = Search />
 
 	{% if error %}
